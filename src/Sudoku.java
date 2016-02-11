@@ -650,8 +650,7 @@ class Sudoku
         if( args.length > 0 ) 
             in = new FileInputStream( args[0] );
         else
-            in = //System.in;
-            		new FileInputStream( "veryHard4x4.txt");
+            in = System.in;
         
 
         // The first number in all Sudoku files must represent the size of the puzzle.  See
@@ -679,7 +678,7 @@ class Sudoku
         
         // Print out the (hopefully completed!) puzzle
         s.print();
-        System.out.println("Time spent solving: "+elapsedTime);
+        System.out.println("Time spent solving: "+elapsedTime+" milliseconds.");
     }
 }
 
