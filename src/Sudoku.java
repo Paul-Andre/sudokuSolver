@@ -1,47 +1,62 @@
 import java.util.*;
 import java.io.*;
 
-/* Some vocabulary:
+/* Definitions of the words I use:
  * 
  * cell: a cell of the sudoku
  * zone: the generalized idea of a line, column or square
  * value, number: a number from 1 to N that can go in a cell
- * promoting a cell: setting a cell to a certain definite value
+ * promoting a cell: assigning a definite value to a cell
  * 
+ *
  * 
- * A quick summary of my solution:
+ *
+ * A summary of my solution:
  * 
- * First, instead of using just the provided grid, my solution turns the grid into a structure of Cells and Zones.
- * Cells refer to the zones in which they are and zones refer to the cells they contain. Each cell has an array
- * of all the possible values it can take and each zone has an array of all the values that have already been found
- * in that zone.
+ * First, it turns a given grid into a structure of Cells and Zones to make part
+ * of the solving more efficient.
  * 
- * Also, whenever an zone of cell must keeps a reference to another, it keeps the only the id of that object. The actual
- * zones and cells are held two arrays called allZones and allCells. The ids of the zones and cells represent their
- * position in these arrays. I did this so that it would be easier to clone the structure.
+ * Next, it uses a backtracking approach with a few twists. Instead of using
+ * the standard recursive approach to backtracking, my solution keeps a heap of
+ * partially solved sudokus and always chooses to solve the one with the least
+ * empty cells.
+ *
+ * When solving, the program will first solve "logically" as much as possible using two
+ * basic techniques (explained in the solveLogically method). During this stage
+ * it narrows down possibilities and checks for inconsistencies.
+ *
+ * If inconsistencies are found, the solution is discarded. Otherwise, if it
+ * couldn't be fully solved, it is placed back on the heap.
+ *
+ * Each time the program takes out a new partial solution from the heap, it
+ * chooses the cell with the least possible values and tries all of them. For
+ * each possibility, it will assign it to the cell and try solving. It will
+ * then discard or place what it gets on the heap as necessary and continue.
+ *
+ *
+ *
+ *
+ * Details of the the data structure:
+ *
+ * A graph of cells and zones.
+ *
+ * Cells refer to the zones they belong to and zones refer to the cells they
+ * contain.
+ *
+ * Each cell keeps track of the possible values it can take.
+ * Each zone keeps track of the values that have been previously been found in
+ * the zone.
  * 
- * Additionally, a set called emptyCells contains the ids of all the cells that haven't been found yet.
+ * I keep the cells and zones in arrays (allCells and allZones) and refer to
+ * them using their index in the array. I do this instead of using references
+ * to make it easier to clone the whole data structure.
  * 
+ * Additionally, a set called emptyCells contains the ids of all the cells that
+ * haven't been assigned a value yet.
  * 
- * Then, part of my algorithm tries to solve the sudoku logically. It's during this part that it performs a bunch of
- * sanity checks to check if there is no need for backtracking. If there is an error, it returns false, otherwise,
- * it tries solving the sudoku as much as possible and returns true. Whenever it discovers the value of a cell, the cell
- * is said to be "promoted". The value is then written in the grid and the Cell object is removed from the structure.
- * 
- * The other part of my algorithm tries "guessing" the value of a cell and does backtracking. Instead of using
- * a simple recursive backtracking algorithm, I used a priority queue, so that it always considers the partially finished
- * sudoku with the least unsolved cells first.
- * 
- * Also, When choosing a cell for which to guess the values, my algorithm always picks the cells with the least possible
- * solutions.
- * 
- * 
- * One problem with the priority queue based solution is that it can take a lot of memory, but hopefully, this isn't too
- * much of a problem if the sudokus don't get any bigger than 5x5.
- * 
- * 
- * Note that throughout my code, I'll use arrays of size N+1 and I'll just not use the 0th position. This is to 
- * make things more clear.
+ *
+ * Note that throughout my code, I'll use arrays of size N+1 to contain values
+ * indexed from 1 to N. 
  */
 
 class Sudoku
@@ -55,10 +70,10 @@ class Sudoku
     int Grid[][];
 
     /* Cell
-     * represents an unpromoted sudoku cell
+     * Represents an sudoku cell for which we don't know the solution yet.
      */
 	class Cell {
-		// zones contains the ids of the zones to which the cell belongs
+		// zones contains the ids of the zones to which this cell belongs
 		ArrayList<Integer> zones;
 		
 		// possibilities represent what values haven't been eliminated for the cell
@@ -66,8 +81,8 @@ class Sudoku
 		boolean[] possibilities;
 		int numberOfPossibilities;
 		
-		// Even though my algorithm doesn't care for the position of the cell in the grid, it still needs the coordinates
-		// to be able to set the right square in the solution for this cell is found
+		// Even though my algorithm doesn't care about the position of the cell in the grid, it still needs the coordinates
+		// to be able to set the right square in the solution grid once the value in this cell is found
 		int originalX, originalY;
 		
 		int id;
@@ -97,7 +112,7 @@ class Sudoku
 		public void excludePossibility(int value){
 			// If this possibility was open before, now there is one less possibility
 			if (possibilities[value]){
-				numberOfPossibilities --;
+				numberOfPossibilities--;
 			}
 			possibilities[value] = false;
 		}
@@ -218,7 +233,7 @@ class Sudoku
 		}
 	}
 	
-	/* This function will try to solve the sudoku logically as far as it can.
+	/* This method will try to solve the sudoku logically as far as it can.
 	 * It will return true if everything was correct, and false if there was some kind of
 	 * inconsistency and there is a need to backtrack.
 	 */
@@ -227,7 +242,7 @@ class Sudoku
 			/*
 			 * Here, I use two different techniques to solve the sudoku.
 			 * 
-			 * a) eliminating what values can go in a cell based on the values of other cells in its zones, and
+			 * a) eliminating what values can go in a cell based on the values of other cells in its zones and
 			 * promoting the cell if it has only one possibility left
 			 * b) checking if a cell is the only one that can take a certain value in one of its zones.
 			 *
@@ -238,7 +253,7 @@ class Sudoku
 			 * For example, for the provided veryHard5x5.txt, no backtracking was needed at all.
 			 *
 			 * During these two techniques my algorithm takes note of what cells are to be promoted, and only promote
-			 * them at the end to prevent removing elements during iteration because it can lead to bugs.
+			 * them at the end to prevent removing elements during iteration because it can be tricky.
 			 */
 			
 			// I use a LinkedHashMap so that I can add rapidly, and check if I already tried promoting
@@ -290,7 +305,7 @@ class Sudoku
 			
 			
 			
-			// Using technique b
+			// Using technique b)
 			
 			// for every zone
 			for (Zone zone : allZones){
@@ -436,7 +451,7 @@ class Sudoku
 	}
 	
 
-	/* The function that is actually called
+	/* The function that is called by main and was used by the evaluators to test out code.
 	 * 
 	 */
 	public void solve(){
@@ -449,7 +464,7 @@ class Sudoku
 		}
     	
     	// Create a heap to keep the intermediate sudoku states and always work on the one with the least empty cells
-    	PriorityQueue<Sudoku> heap = new PriorityQueue<Sudoku>(1024,new Comparator<Sudoku>(){
+    	PriorityQueue<Sudoku> heap = new PriorityQueue<Sudoku>(1024, new Comparator<Sudoku>(){
     		public int compare(Sudoku a, Sudoku b){
     			return a.emptyCells.size() - b.emptyCells.size();
     		}
@@ -641,8 +656,11 @@ class Sudoku
 
     /* The main function reads in a Sudoku puzzle from the standard input, 
      * unless a file name is provided as a run-time argument, in which case the
-     * Sudoku puzzle is loaded from that file.  It then solves the puzzle, and
-     * outputs the completed puzzle to the standard output. */
+     * Sudoku puzzle is loaded from that file.  It then solves the puzzle and
+     * outputs the completed puzzle to the standard output.
+	 *
+	 * It is assumed that the sudoku has a solution and will output whatever solution it finds first.
+	 */
     public static void main( String args[] ) throws Exception
     {
         InputStream in;
