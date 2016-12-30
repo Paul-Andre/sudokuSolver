@@ -52,16 +52,18 @@ import java.io.*;
  * to make it easier to clone the whole data structure.
  * 
  * Additionally, a set called emptyCells contains the ids of all the cells that
- * haven't been assigned a value yet.
+ * haven't been assigned a value yet. (The choice of data structure is a bit
+ * weird in hindsight. I guess it was to have fast removals. An array of bools
+ * or a bitfield would be easy to use instead of this.)
  * 
  *
  * Note that throughout my code, I'll use arrays of size N+1 to contain values
- * indexed from 1 to N. 
+ * indexed from 1 to N with the first position unused.
  */
 
 class Sudoku
 {
-/* SIZE is the size parameter of the Sudoku puzzle, and N is the square of the size.  For 
+    /* SIZE is the size parameter of the Sudoku puzzle, and N is the square of the size.  For 
      * a standard Sudoku puzzle, SIZE is 3 and N is 9. */
     int SIZE, N;
 
@@ -128,9 +130,10 @@ class Sudoku
         // I use a set to rapidly remove elements from it.
         Set<Integer> emptyCells;
         
-        // foundNumbers represents the number that were already found in cells of the zone.
-        // Once the cells were promoted, the values they were promoted to are marked here, so they can be later eliminated
-        // from the other cells in the zone
+        // foundNumbers represents the number that were already found in cells
+        // of the zone.  Once the cells were promoted, the values they were
+        // promoted to are marked here, so they can be later eliminated from
+        // the other cells in the zone
         boolean[] foundNumbers;
         
         int id;
@@ -181,30 +184,30 @@ class Sudoku
         return ret;
     }
     
-    // This set is used when we need to perform stuff on all unpromoted cells of the sudoku.
+    // Contains the ids of cells for which we don't know the value yet. Used to iterate over them.
     Set<Integer> emptyCells;
     
     
     // This function is used at the beginning to create the structure that will be used while solving the sudoku
     public void initilizeSolvingStructure(){
-        // Represent the sudoku grid as a bunch of zones and cells
         
         // There can be at most N*N cells and 3*N zones (N rows, N columns, and N squares)
         allCells = new ArrayList<Cell>(N*N);
         allZones = new ArrayList<Zone>(3*N);
         
+        // There are 3 different types of zones: squares, rows, and columns.
         Zone[] squareZones = new Zone[N];
         Zone[] columnZones = new Zone[N];
         Zone[] rowZones = new Zone[N];
         
-        // Create a bunch of empty zones
+        // There are N zones of each type.
         for (int i = 0; i < N; i++) {
             squareZones[i]=createZone();
             columnZones[i]=createZone();
             rowZones[i]=createZone();
         }
  
-        // Iterate through all the through each cell in the grid
+        // Iterate through through every cell in the grid and put it in the right zones.
         for(int i=0; i<N; i++){
             for(int j=0; j<N; j++){
                 int value = Grid[i][j];
@@ -216,7 +219,7 @@ class Sudoku
                     columnZones[i].addCell(cell);
                     rowZones[j].addCell(cell);
                 }
-                // else, write in the right zones that the value was found 
+                // Else, write in the right zones that that value was already found.
                 else{
                     squareZones[i/SIZE + (j/SIZE)*SIZE].foundNumbers[value]=true;
                     columnZones[i].foundNumbers[value]=true;
@@ -244,7 +247,8 @@ class Sudoku
              * 
              * a) eliminating what values can go in a cell based on the values of other cells in its zones and
              * promoting the cell if it has only one possibility left
-             * b) checking if a cell is the only one that can take a certain value in one of its zones.
+             * b) checking if a cell is the only one that can take a certain value in one of its zones and
+             * promoting it then
              *
              * These two techniques correspond roughly to the SiSo and SC techniques described here:
              * http://www.menneske.no/sudoku/5/eng/reducingmethods.html
@@ -252,8 +256,8 @@ class Sudoku
              * Combining both techniques lets you solve sudokus with very little need for backtracking.
              * For example, for the provided veryHard5x5.txt, no backtracking was needed at all.
              *
-             * During these two techniques my algorithm takes note of what cells are to be promoted, and only promote
-             * them at the end to prevent removing elements during iteration because it can be tricky.
+             * During these two techniques my algorithm takes note of what cells are to be promoted and only promote
+             * them at the end. This is to prevent bugs that can be caused by removing elements during iteration.
              */
             
             // I use a LinkedHashMap so that I can add rapidly, and check if I already tried promoting
@@ -311,7 +315,7 @@ class Sudoku
             for (Zone zone : allZones){
                 
                 // possibilityCount will count the number of times a possibility appears in the zone
-                // lastCellWithPossibility tracks the last cell with such possibility, so that it can be  
+                // lastCellWithPossibility tracks the last cell with such possibility, so that it can be promoted
                 int[] possibilityCount = new int[N+1];
                 int[] lastCellWithPossibility = new int[N+1];
                 
@@ -387,8 +391,7 @@ class Sudoku
         for (int zoneId : cell.zones){
             Zone zone = allZones.get(zoneId);
             
-            // If this number was already found in the zone, there is an error, because that must have been in another
-            // cell, that would have been already removed.
+            // If this number was already found in the zone, there is an error
             if (zone.foundNumbers[value]==true){
                 return false;
             }
@@ -422,7 +425,7 @@ class Sudoku
             }
         }
         
-        // create an array for the zones and cells
+        // create arrays for the cells and zones
         ret.allCells = new ArrayList<Sudoku.Cell>(N*N);
         ret.allZones = new ArrayList<Sudoku.Zone>(3*N);
         
@@ -451,8 +454,9 @@ class Sudoku
     }
     
 
-    /* The function that is called by main and was used by the evaluators to test out code.
-     * 
+    /* The method that actually solves the sudoku.
+     *
+     * It is directly called from main and was used by the evaluators to test out code.
      */
     public void solve(){
         this.initilizeSolvingStructure();
@@ -478,8 +482,6 @@ class Sudoku
             // Choose the empty cell with the least open possibilities
             int cellId = Collections.min(sudoku.emptyCells, new Comparator<Integer>() {
                 public int compare(Integer a, Integer b){
-                    //sudoku.print();
-                    //System.out.println();
                     return sudoku.allCells.get(a).numberOfPossibilities - sudoku.allCells.get(b).numberOfPossibilities;
                 }
             });
@@ -494,7 +496,7 @@ class Sudoku
                 if(cell.possibilities[i]){
                     
 
-                    // Create a copy of the sudoku or just take the sudoku if we're at the last possibility.
+                    // Create a copy of the sudoku object or just take the same object if we're at the last possibility.
                     Sudoku newSudoku;
                     if(possibilityIndex==lastPossibilityIndex){
                         newSudoku = sudoku;
@@ -503,7 +505,7 @@ class Sudoku
                         newSudoku = sudoku.copy();
                     }
                     
-                    // Try to promote the cell to the chosen possibility and then try solving logically.
+                    // Try to promote the cell to the chosen possibility and then solving logically.
                     // Both of these methods should return true if there was no inconsistency.
                     if(newSudoku.promoteCell(cellId, i) && newSudoku.solveLogically()){
                         
